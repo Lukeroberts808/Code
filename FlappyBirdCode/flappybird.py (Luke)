@@ -1,0 +1,154 @@
+import pygame
+import sys
+import random
+from Game_Creations import pipe_creation, pipe_spawner, pipe_movement, check_collision, score
+
+def FlappyBirdCore():
+    # Init Pygame and mixer
+    pygame.init()
+    pygame.mixer.init()
+
+    # Screen settings
+    Width, Height = 400, 600
+    screen = pygame.display.set_mode((Width, Height))
+    pygame.display.set_caption("Flappy Bird")
+
+    # Colors
+    White = (255, 255, 255)
+    Blue = (135, 206, 235)
+    Green = (0, 200, 0)
+    Purple = (160, 0, 160)   # bad item color
+
+    # Misc
+    Bird = pygame.image.load("THEBIRDY.png").convert_alpha()
+    Bird = pygame.transform.scale(Bird, (50, 40))
+    bird_rect = Bird.get_rect(center=(100, Height // 2))
+
+    # Game variables
+    running = True
+    gravity = 0.7
+    bird_movement = 0
+    Scoring_Number = 0
+
+    # Pipe settings
+    pipe_width = 60
+    pipe_gap = 150
+    pipe_speed = 3
+    pipes = []
+
+    # BAD EFFECTS: list of "bad orbs" and effect status
+    bad_items = []             # list of Rects
+    inverted_controls = False  # whether SPACE is flipped
+    effect_end_time = 0        # time (ms) when bad effect ends
+
+    # Events
+    Spawnpipe = pygame.USEREVENT + 1
+    SpawnBad = pygame.USEREVENT + 2
+
+    pygame.time.set_timer(Spawnpipe, 1200)
+    pygame.time.set_timer(SpawnBad, 4000)  # spawn a bad item every 4 seconds
+
+    font = pygame.font.SysFont(None, 40)
+    clock = pygame.time.Clock()
+
+    while True:
+        current_time = pygame.time.get_ticks()
+
+        # Check if bad effect should wear off
+        if inverted_controls and current_time > effect_end_time:
+            inverted_controls = False
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and running:
+                    # BAD EFFECT: invert jump when under bad effect
+                    if inverted_controls:
+                        bird_movement = 8    # SPACE makes you dive
+                    else:
+                        bird_movement = -8   # normal jump
+
+                if event.key == pygame.K_SPACE and not running:
+                    # Reset game
+                    bird_rect.center = (100, Height // 2)
+                    bird_movement = 0
+                    pipes.clear()
+                    bad_items.clear()
+                    Scoring_Number = 0
+                    running = True
+                    inverted_controls = False
+                    effect_end_time = 0
+
+            if event.type == Spawnpipe and running:
+                pipes.extend(pipe_spawner(Width, Height, pipe_width, pipe_gap))
+
+            # BAD EFFECT: spawn bad items
+            if event.type == SpawnBad and running:
+                bad_size = 25
+                y_pos = random.randint(100, Height - 100)
+                bad_rect = pygame.Rect(Width, y_pos, bad_size, bad_size)
+                bad_items.append(bad_rect)
+
+        screen.fill(Blue)
+
+        if running:
+            # Bird movement
+            bird_movement += gravity
+            bird_rect.centery += bird_movement
+            screen.blit(Bird, bird_rect)
+
+            # Pipes: horizontal movement
+            pipes = pipe_movement(pipes, pipe_speed)
+
+            # >>> MOVING PIPES (vertical wiggle) <<<
+            # Each frame, nudge each pipe up/down a tiny random amount
+            for pipe in pipes:
+                pipe.y += random.choice([-1, 0, 1])
+
+            # Draw pipes
+            pipe_creation(screen, pipes, Green)
+
+            # BAD ITEMS: move and draw them
+            for bad_rect in bad_items:
+                bad_rect.x -= pipe_speed
+            # Remove off-screen bad items
+            bad_items = [b for b in bad_items if b.right > 0]
+
+            for bad_rect in bad_items:
+                pygame.draw.rect(screen, Purple, bad_rect)
+
+            # Collision with pipes / ground / ceiling
+            running = check_collision(bird_rect, pipes, Height)
+
+            # BAD EFFECT collision: touching a bad item activates inverted controls
+            for bad_rect in bad_items[:]:
+                if bird_rect.colliderect(bad_rect):
+                    inverted_controls = True
+                    effect_duration_ms = 3000  # 3 seconds
+                    effect_end_time = pygame.time.get_ticks() + effect_duration_ms
+                    bad_items.remove(bad_rect)
+
+            # Scoring
+            for pipe in pipes:
+                if pipe.centerx == bird_rect.centerx:
+                    Scoring_Number += 0.5
+            score(screen, font, Scoring_Number)
+
+            # Visual indicator when bad effect is active
+            if inverted_controls:
+                overlay = pygame.Surface((Width, Height), pygame.SRCALPHA)
+                overlay.fill((255, 0, 0, 60))  # light red tint
+                screen.blit(overlay, (0, 0))
+
+        else:
+            game_over_surface = font.render("Game Over! Press SPACE", True, (0, 0, 0))
+            screen.blit(game_over_surface, (30, Height // 2 - 20))
+
+        pygame.display.update()
+        clock.tick(60)
+
+if __name__ == "__main__":
+    FlappyBirdCore()
