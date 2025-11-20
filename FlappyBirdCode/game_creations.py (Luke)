@@ -1,0 +1,105 @@
+import pygame
+import random
+import time
+
+# Universal colors
+Green = (0, 200, 0)
+PURPLE = (160, 0, 160)
+
+# -------------------------
+# Pipes
+# -------------------------
+
+# Spawns a pair of pipes with a gap between them
+def pipe_spawner(swidth, sheight, pwidth, pgap):
+    pheight = random.randint(100, sheight - 250)
+    bottom = pygame.Rect(
+        swidth,
+        pheight + pgap,
+        pwidth,
+        sheight - (pheight + pgap)
+    )
+    top = pygame.Rect(
+        swidth,
+        0,
+        pwidth,
+        pheight
+    )
+    return [bottom, top]
+
+# Draws all pipes
+def pipe_creation(screen, pipes, color=None):
+    # color parameter kept for compatibility, but we always use Green
+    for p in pipes:
+        pygame.draw.rect(screen, Green, p)
+
+# Moves pipes left and removes off-screen ones
+def pipe_movement(pipes, speed):
+    for p in pipes:
+        p.centerx -= speed
+    return [p for p in pipes if p.right > 0]
+
+# -------------------------
+# Collision
+# -------------------------
+
+# Returns False if game over, True otherwise
+def check_collision(bird, pipes, sheight):
+    # Hit a pipe?
+    for p in pipes:
+        if bird.colliderect(p):
+            return False
+
+    # Hit top or bottom of the screen?
+    if bird.top <= 0 or bird.bottom >= sheight:
+        return False
+
+    return True
+
+# -------------------------
+# Score
+# -------------------------
+
+def score(screen, font, score):
+    score_text = font.render(f"Score: {int(score)}", True, (0, 0, 0))
+    screen.blit(score_text, (10, 10))
+
+# -------------------------
+# BAD EFFECTS (negative power-ups)
+# -------------------------
+# These are purple blocks that activate a "bad" state when hit.
+# The main game will use that state to invert controls and show red tint.
+# -------------------------
+
+# Spawn one bad block on the right edge at a random height
+def spawn_bad_item(swidth, sheight):
+    size = 25
+    y = random.randint(80, sheight - 80)
+    rect = pygame.Rect(swidth, y, size, size)
+    return rect
+
+# Move all bad items left and keep only on-screen ones
+def move_bad_items(bad_items, speed):
+    for r in bad_items:
+        r.centerx -= speed
+    return [r for r in bad_items if r.right > 0]
+
+# Draw bad items as purple squares
+def draw_bad_items(screen, bad_items):
+    for r in bad_items:
+        pygame.draw.rect(screen, PURPLE, r)
+
+# If bird hits a bad item, activate the bad effect
+# state is a dict from your main game:
+#   state["bad_active"]: bool
+#   state["bad_end_time"]: float (time.time())
+def handle_bad_collision(bird, bad_items, state):
+    remaining = []
+    for r in bad_items:
+        if bird.colliderect(r):
+            # Turn on bad effect for 3 seconds
+            state["bad_active"] = True
+            state["bad_end_time"] = time.time() + 3
+        else:
+            remaining.append(r)
+    return remaining
