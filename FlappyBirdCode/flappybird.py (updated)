@@ -1,7 +1,16 @@
 import pygame
 import sys
 import random
-from Game_Creations import pipe_creation, pipe_spawner, pipe_movement, check_collision, score
+from Game_Creations import (
+    pipe_creation,
+    pipe_spawner,
+    pipe_movement,
+    check_collision,
+    score,
+    spawn_bad_item,
+    move_bad_items,
+    draw_bad_items,
+)
 
 def FlappyBirdCore():
     # Init Pygame and mixer
@@ -17,10 +26,10 @@ def FlappyBirdCore():
     White  = (255, 255, 255)
     Blue   = (135, 206, 235)
     Green  = (0, 200, 0)
-    Purple = (160, 0, 160)   # invert controls
-    Yellow = (255, 255, 0)   # flash bomb
-    Red    = (255, 80, 80)   # speed up
-    DarkBlue = (80, 80, 255) # slow motion
+    Purple = (160, 0, 160)      # invert controls
+    Yellow = (255, 255, 0)      # flash bomb
+    Red    = (255, 80, 80)      # speed up
+    DarkBlue = (80, 80, 255)    # slow motion
 
     BAD_COLORS = {
         "invert": Purple,
@@ -122,12 +131,9 @@ def FlappyBirdCore():
             if event.type == Spawnpipe and running:
                 pipes.extend(pipe_spawner(Width, Height, pipe_width, pipe_gap))
 
-            # BAD EFFECT: spawn bad items
+            # BAD EFFECT: spawn bad items using helper
             if event.type == SpawnBad and running:
-                bad_size = 25
-                y_pos = random.randint(100, Height - 100)
-                bad_rect = pygame.Rect(Width, y_pos, bad_size, bad_size)
-                kind = random.choice(["invert", "flash", "speedup", "slow"])
+                bad_rect, kind = spawn_bad_item(Width, Height, size=25)
                 bad_items.append((bad_rect, kind))
 
         # ======== DRAW BACKGROUND ========
@@ -147,20 +153,12 @@ def FlappyBirdCore():
             for pipe in pipes:
                 pipe.y += random.choice([-1, 0, 1])
 
-            # draw pipes
+            # draw pipes via helper
             pipe_creation(screen, pipes, Green)
 
-            # ======== BAD ITEMS: MOVE & DRAW ========
-            new_bad_items = []
-            for bad_rect, kind in bad_items:
-                bad_rect.x -= pipe_speed  # move at same speed as pipes
-                if bad_rect.right > 0:
-                    new_bad_items.append((bad_rect, kind))
-            bad_items = new_bad_items
-
-            # draw bad items with their colors
-            for bad_rect, kind in bad_items:
-                pygame.draw.rect(screen, BAD_COLORS[kind], bad_rect)
+            # ======== BAD ITEMS: MOVE & DRAW (helpers) ========
+            bad_items = move_bad_items(bad_items, pipe_speed)
+            draw_bad_items(screen, bad_items, BAD_COLORS)
 
             # ======== COLLISION WITH PIPES / BOUNDS ========
             running = check_collision(bird_rect, pipes, Height)
@@ -185,7 +183,7 @@ def FlappyBirdCore():
                             speed_effect = "slow"
                             pipe_speed = max(1, base_pipe_speed // 2)   # slower pipes
                             speed_effect_end_time = current_time + 4000  # 4 seconds
-                        # you could also subtract score here if you want "bad" points
+                        # optional: change score here if you want bad items to also hurt score
                     else:
                         updated_bad_items.append((bad_rect, kind))
                 bad_items = updated_bad_items
